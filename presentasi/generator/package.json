@@ -1,0 +1,17 @@
+{
+  "name": "deck-paud-hi",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Generator deck Penguatan Kemitraan Strategis dan PAUD Holistik Integratif",
+  "scripts": {
+    "build": "node build.js",
+    "preview": "node preview.js"
+  },
+  "dependencies": {
+    "pptxgenjs": "^3.12.0",
+    "react": "^18.0.0",
+    "react-dom": "^18.0.0",
+    "react-icons": "^5.0.0",
+    "sharp": "^0.33.0"
+  }
+}
