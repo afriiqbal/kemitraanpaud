@@ -3,7 +3,10 @@
 Presentasi 30 slide bertema **“Penguatan Kemitraan Strategis dan PAUD Holistik Integratif (PAUD HI)
 dalam Meningkatkan Mutu Layanan PAUD.”**
 
-File siap pakai: [`Kemitraan_Strategis_PAUD_HI.pptx`](Kemitraan_Strategis_PAUD_HI.pptx) (16:9, 13,33" × 7,5").
+File siap pakai:
+
+- [`Kemitraan_Strategis_PAUD_HI.pptx`](Kemitraan_Strategis_PAUD_HI.pptx) — versi yang bisa disunting (16:9, 13,33" × 7,5").
+- [`Kemitraan_Strategis_PAUD_HI.pdf`](Kemitraan_Strategis_PAUD_HI.pdf) — 30 halaman, untuk dibaca di ponsel/tablet tanpa pergeseran tata letak.
 
 ## Struktur
 
@@ -61,6 +64,16 @@ node extract_assets.js /path/refA.pptx /path/refB.pptx ../assets
 # 2) bangun deck
 npm run build      # menghasilkan ../Kemitraan_Strategis_PAUD_HI.pptx
 ```
+
+Untuk memperbarui PDF-nya:
+
+```bash
+soffice --headless --convert-to pdf Kemitraan_Strategis_PAUD_HI.pptx
+```
+
+Deck memakai font **Calibri**. Agar hasil PDF sama persis dengan tampilan PowerPoint,
+pasang font metrik-kompatibelnya lebih dulu jika mengonversi di Linux:
+`apt-get install fonts-crosextra-carlito`.
 
 `build.js` memuat isi dan tata letak setiap slide, `extract_assets.js` memuat daftar aset beserta
 area potongannya, dan `lib/icons.js` merender ikon. Ubah teks, warna, atau pemetaan gambar di
