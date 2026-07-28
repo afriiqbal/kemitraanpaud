@@ -17,6 +17,23 @@ File siap pakai: [`Kemitraan_Strategis_PAUD_HI.pptx`](Kemitraan_Strategis_PAUD_H
 
 Setiap slide dilengkapi catatan pembicara (speaker notes).
 
+## Gambar
+
+**Seluruh gambar diambil dari dua berkas referensi Direktorat PAUD** yang disediakan, bukan
+ilustrasi buatan baru:
+
+- **A** — `2. Kebijakan Program PAUDHI Tahun 2026.pptx`
+- **B** — `Kebijakan Program PAUD HI di Kemendikdasmen.pptx`
+
+Aset hasil ekstraksi tersimpan di [`assets/`](assets) beserta
+[`assets/MANIFEST.json`](assets/MANIFEST.json) yang mencatat berkas sumber, area potongan,
+ukuran, dan keterangan setiap gambar. Sebagian aset dipotong dari slide sumber agar hanya
+memuat ilustrasinya (tanpa teks bawaan slide), lalu dikecilkan ke sisi terpanjang 1200 px —
+foto disimpan sebagai JPEG, ilustrasi sebagai PNG.
+
+Ikon antarmuka (lingkaran berwarna pada kartu) dirender dari `react-icons`; ini elemen tata
+letak, bukan ilustrasi tokoh.
+
 ## Sumber data
 
 Angka capaian pada slide 6 dan 16 mengacu pada Dapodik, *cut off* 31 Desember 2025
@@ -27,20 +44,24 @@ Perpres No. 72/2021, dan RAN PAUD HI Bidang Pendidikan.
 ## Desain
 
 - Palet biru (`1E76C8`) sebagai warna dominan, didukung hijau (`2FA36B`), oranye (`F5871F`), dan putih.
-- Motif berulang: kartu sudut membulat dengan bayangan lembut dan ikon di dalam lingkaran berwarna.
-- Seluruh ilustrasi dibangun sebagai vektor flat modern di `generator/lib/illus.js` — anak PAUD,
-  guru, orang tua, kader posyandu, tenaga kesehatan, Bunda PAUD, rapat kemitraan, gotong royong,
-  makan bergizi, parenting, dan lingkungan sekolah ramah anak. Tidak ada foto.
-- Ikon flat berasal dari `react-icons` yang dirender menjadi PNG pada warna palet.
+- Motif berulang: kartu sudut membulat dengan bayangan lembut, ikon di dalam lingkaran berwarna,
+  dan bingkai putih pada setiap gambar.
+- Tata letak bervariasi antar slide: kartu bertingkat, linimasa, diagram roda pemangku kepentingan,
+  kolom banding mitos–fakta, lembar cek, kartu studi kasus, dan satu grafik batang bawaan PowerPoint.
 
 ## Membangun ulang
 
 ```bash
 cd generator
 npm install
-npm run build      # menghasilkan Kemitraan_Strategis_PAUD_HI.pptx
-npm run preview    # merender seluruh ilustrasi ke out/ untuk pemeriksaan visual
+
+# 1) siapkan aset gambar dari kedua berkas referensi (sekali saja)
+node extract_assets.js /path/refA.pptx /path/refB.pptx ../assets
+
+# 2) bangun deck
+npm run build      # menghasilkan ../Kemitraan_Strategis_PAUD_HI.pptx
 ```
 
-`build.js` memuat isi dan tata letak setiap slide; `lib/illus.js` memuat pustaka ilustrasi;
-`lib/icons.js` merender ikon. Ubah teks atau warna di berkas tersebut lalu jalankan ulang `npm run build`.
+`build.js` memuat isi dan tata letak setiap slide, `extract_assets.js` memuat daftar aset beserta
+area potongannya, dan `lib/icons.js` merender ikon. Ubah teks, warna, atau pemetaan gambar di
+berkas tersebut lalu jalankan ulang `npm run build`.

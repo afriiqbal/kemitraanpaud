@@ -1,8 +1,9 @@
-/* Pembangun deck: "Penguatan Kemitraan Strategis dan PAUD Holistik Integratif (PAUD HI)" */
+/* Pembangun deck: "Penguatan Kemitraan Strategis dan PAUD Holistik Integratif (PAUD HI)"
+   Seluruh gambar diambil dari dua berkas referensi Direktorat PAUD (lihat ../assets/MANIFEST.json). */
 const fs = require('fs');
+const path = require('path');
 const sharp = require('sharp');
 const PptxGenJS = require('pptxgenjs');
-const { S } = require('./lib/illus');
 const { icon } = require('./lib/icons');
 
 /* ------------------------------------------------------------ PALET & TIPO */
@@ -19,21 +20,51 @@ const F = 'Calibri';
 const SW = 13.333, SH = 7.5, M = 0.62;
 const sh = (o = {}) => Object.assign({ type: 'outer', color: '0F3352', blur: 14, offset: 3, angle: 90, opacity: 0.10 }, o);
 
-/* -------------------------------------------------------------- UTILITAS */
-const IMG = {};
-async function art(name) {
-  if (IMG[name]) return IMG[name];
-  const buf = await sharp(Buffer.from(S[name]())).png({ compressionLevel: 9 }).toBuffer();
-  IMG[name] = 'image/png;base64,' + buf.toString('base64');
-  return IMG[name];
-}
-const ART_RATIO = {};
-async function ratio(name) {
-  if (!ART_RATIO[name]) {
-    const m = /width="(\d+)" height="(\d+)"/.exec(S[name]());
-    ART_RATIO[name] = Number(m[1]) / Number(m[2]);
+/* --------------------------------------------------------------- ASET GAMBAR */
+const ASSETS = path.join(__dirname, '..', 'assets');
+const _data = {}, _ratio = {}, _path = {};
+function assetPath(name) {
+  if (!_path[name]) {
+    for (const ext of ['.png', '.jpg']) {
+      const p = path.join(ASSETS, name + ext);
+      if (fs.existsSync(p)) { _path[name] = p; break; }
+    }
+    if (!_path[name]) throw new Error('Aset tidak ditemukan: ' + name);
   }
-  return ART_RATIO[name];
+  return _path[name];
+}
+async function art(name) {
+  if (!_data[name]) {
+    const p = assetPath(name);
+    const mime = p.endsWith('.jpg') ? 'image/jpeg' : 'image/png';
+    _data[name] = `${mime};base64,` + fs.readFileSync(p).toString('base64');
+  }
+  return _data[name];
+}
+async function ratio(name) {
+  if (!_ratio[name]) {
+    const m = await sharp(assetPath(name)).metadata();
+    _ratio[name] = m.width / m.height;
+  }
+  return _ratio[name];
+}
+/* Menempatkan gambar dengan tinggi tetap tanpa mengubah proporsi. */
+async function imgH(s, name, x, y, h, opt = {}) {
+  const w = h * await ratio(name);
+  const px = opt.center ? x - w / 2 : (opt.right ? x - w : x);
+  if (opt.frame) {
+    s.addShape('roundRect', {
+      x: px - 0.09, y: y - 0.09, w: w + 0.18, h: h + 0.18, rectRadius: 0.14,
+      fill: { color: C.white }, line: { width: 0 }, shadow: sh()
+    });
+  }
+  s.addImage({ data: await art(name), x: px, y, w, h });
+  return { x: px, y, w, h };
+}
+/* Menempatkan gambar dengan lebar tetap tanpa mengubah proporsi. */
+async function imgW(s, name, x, y, w, opt = {}) {
+  const h = w / await ratio(name);
+  return imgH(s, name, opt.right ? x : (opt.center ? x : x), y, h, opt);
 }
 
 let PAGE = 0;
@@ -42,7 +73,6 @@ function baseSlide(pres, opt = {}) {
   s.background = { color: opt.bg || C.white };
   return s;
 }
-/* dekor lembut sudut — motif berulang di seluruh dek */
 function decor(s, tone = C.blueL) {
   s.addShape('ellipse', { x: -1.5, y: -1.6, w: 3.6, h: 3.6, fill: { color: tone, transparency: 45 } });
   s.addShape('ellipse', { x: SW - 1.5, y: SH - 1.7, w: 3.2, h: 3.2, fill: { color: tone, transparency: 55 } });
@@ -52,9 +82,7 @@ function heading(s, kicker, title, kickerColor = C.orange) {
     x: M, y: 0.40, w: 11.6, h: 0.30, fontFace: F, fontSize: 12, bold: true,
     color: kickerColor, charSpacing: 2, margin: 0
   });
-  s.addText(title, {
-    x: M, y: 0.70, w: 11.9, h: 0.72, fontFace: F, fontSize: 32, bold: true, color: C.ink, margin: 0
-  });
+  s.addText(title, { x: M, y: 0.70, w: 11.9, h: 0.72, fontFace: F, fontSize: 32, bold: true, color: C.ink, margin: 0 });
 }
 function footer(s, label = 'Kemitraan Strategis & PAUD Holistik Integratif') {
   PAGE++;
@@ -71,8 +99,7 @@ function card(s, o) {
 async function iconBadge(s, o) {
   const d = o.d || 0.62;
   s.addShape(o.square ? 'roundRect' : 'ellipse', {
-    x: o.x, y: o.y, w: d, h: d, rectRadius: 0.12,
-    fill: { color: o.bg }, line: { width: 0 }
+    x: o.x, y: o.y, w: d, h: d, rectRadius: 0.12, fill: { color: o.bg }, line: { width: 0 }
   });
   s.addImage({ data: await icon(o.icon, '#' + (o.fg || C.white)), x: o.x + d * 0.24, y: o.y + d * 0.24, w: d * 0.52, h: d * 0.52 });
 }
@@ -82,20 +109,18 @@ function bullet(s, items, o) {
     paraSpaceAfter: 7, margin: 0, valign: 'top'
   });
 }
-async function sectionSlide(pres, num, title, sub, scene, tone) {
+async function sectionSlide(pres, num, title, sub, asset, tone) {
   const s = baseSlide(pres, { bg: tone.bg });
-  const rr = await ratio(scene);
-  const imgH = 3.1, imgW = imgH * rr;
-  s.addImage({ data: await art(scene), x: (SW - imgW) / 2, y: SH - imgH, w: imgW, h: imgH });
   s.addShape('ellipse', { x: -1.2, y: -1.4, w: 4.2, h: 4.2, fill: { color: C.white, transparency: 88 } });
+  await imgH(s, asset, SW / 2, 3.86, 3.16, { center: true, frame: true });
   s.addText(num, { x: M + 0.02, y: 0.52, w: 2.6, h: 1.15, fontFace: F, fontSize: 72, bold: true, color: C.white, transparency: 34, margin: 0 });
   s.addText(title, { x: M, y: 1.72, w: 10.9, h: 1.15, fontFace: F, fontSize: 36, bold: true, color: C.white, margin: 0, valign: 'top' });
-  s.addText(sub, { x: M, y: 2.96, w: 9.6, h: 0.9, fontFace: F, fontSize: 15, color: C.white, transparency: 12, margin: 0, valign: 'top' });
+  s.addText(sub, { x: M, y: 2.96, w: 9.6, h: 0.8, fontFace: F, fontSize: 15, color: C.white, transparency: 12, margin: 0, valign: 'top' });
   footer(s);
   return s;
 }
 
-/* ================================================================== BUILD */
+/* ==================================================================== BUILD */
 (async () => {
   const pres = new PptxGenJS();
   pres.layout = 'LAYOUT_WIDE';
@@ -105,26 +130,25 @@ async function sectionSlide(pres, num, title, sub, scene, tone) {
   /* --------------------------------------------------------- 1. SAMPUL */
   {
     const s = baseSlide(pres, { bg: C.blueXD });
-    const rr = await ratio('hero'); const iw = SW, ih = iw / rr;
-    s.addImage({ data: await art('hero'), x: 0, y: SH - ih, w: iw, h: ih });
-    s.addShape('ellipse', { x: 9.4, y: -1.5, w: 5.6, h: 5.6, fill: { color: C.blue, transparency: 55 } });
-    s.addShape('ellipse', { x: -1.6, y: 2.2, w: 3.4, h: 3.4, fill: { color: C.green, transparency: 65 } });
-    s.addShape('roundRect', { x: M, y: 0.55, w: 3.5, h: 0.42, rectRadius: 0.21, fill: { color: C.orange } });
-    s.addText('MATERI PENGUATAN PAUD HI', { x: M, y: 0.55, w: 3.5, h: 0.42, fontFace: F, fontSize: 11, bold: true, color: C.white, align: 'center', charSpacing: 1, margin: 0 });
+    s.addShape('ellipse', { x: 8.6, y: -2.2, w: 7.2, h: 7.2, fill: { color: C.blue, transparency: 58 } });
+    s.addShape('ellipse', { x: -2.0, y: 3.6, w: 4.4, h: 4.4, fill: { color: C.green, transparency: 68 } });
+    await imgH(s, 'cover_guru_anak', SW - M, 1.44, 4.6, { right: true, frame: true });
+    s.addShape('roundRect', { x: M, y: 0.9, w: 3.5, h: 0.42, rectRadius: 0.21, fill: { color: C.orange } });
+    s.addText('MATERI PENGUATAN PAUD HI', { x: M, y: 0.9, w: 3.5, h: 0.42, fontFace: F, fontSize: 11, bold: true, color: C.white, align: 'center', charSpacing: 1, margin: 0 });
     s.addText('Penguatan Kemitraan Strategis\ndan PAUD Holistik Integratif', {
-      x: M, y: 1.06, w: 9.6, h: 1.5, fontFace: F, fontSize: 36, bold: true, color: C.white, lineSpacing: 40, margin: 0
+      x: M, y: 1.6, w: 5.9, h: 2.1, fontFace: F, fontSize: 29, bold: true, color: C.white, lineSpacing: 33, margin: 0
     });
-    s.addText('dalam Meningkatkan Mutu Layanan PAUD', {
-      x: M, y: 2.52, w: 9.2, h: 0.42, fontFace: F, fontSize: 18, color: C.blueM, margin: 0
-    });
+    s.addText('dalam Meningkatkan Mutu Layanan PAUD', { x: M, y: 3.86, w: 5.9, h: 0.42, fontFace: F, fontSize: 16, color: C.blueM, margin: 0 });
     const chips = [['5 Bagian', C.orange], ['30 Slide', C.green], ['Berbasis 8 Indikator PAUD HI', C.teal]];
-    let cx = M;
+    let cx = M, cy = 4.34;
     chips.forEach(([t, col]) => {
       const w = 0.28 + t.length * 0.098;
-      s.addShape('roundRect', { x: cx, y: 3.02, w, h: 0.40, rectRadius: 0.20, fill: { color: C.white, transparency: 82 }, line: { color: col, width: 1.25 } });
-      s.addText(t, { x: cx, y: 3.02, w, h: 0.40, fontFace: F, fontSize: 11, bold: true, color: C.white, align: 'center', margin: 0 });
+      if (cx + w > 6.5) { cx = M; cy += 0.56; }
+      s.addShape('roundRect', { x: cx, y: cy, w, h: 0.40, rectRadius: 0.20, fill: { color: C.white, transparency: 82 }, line: { color: col, width: 1.25 } });
+      s.addText(t, { x: cx, y: cy, w, h: 0.40, fontFace: F, fontSize: 11, bold: true, color: C.white, align: 'center', margin: 0 });
       cx += w + 0.16;
     });
+    s.addText('Direktorat Pendidikan Anak Usia Dini', { x: M, y: 6.5, w: 6, h: 0.32, fontFace: F, fontSize: 12, color: C.blueM, margin: 0 });
     PAGE++;
     s.addNotes('Slide pembuka. Sampaikan judul, tujuan besar sesi, dan ajak peserta melihat PAUD HI sebagai kerja bersama — bukan program tambahan.');
   }
@@ -150,12 +174,11 @@ async function sectionSlide(pres, num, title, sub, scene, tone) {
       s.addText(t, { x: x + 0.28, y: 2.66, w: cw - 0.56, h: 0.62, fontFace: F, fontSize: 15, bold: true, color: C.ink, margin: 0, valign: 'top' });
       s.addText(d, { x: x + 0.28, y: 3.26, w: cw - 0.56, h: 0.85, fontFace: F, fontSize: 11, color: C.body, margin: 0, valign: 'top' });
     }
-    const rr = await ratio('roadmap'); const iw = 5.2, ih = iw / rr;
-    s.addImage({ data: await art('roadmap'), x: SW - M - iw, y: 4.32, w: iw, h: ih });
-    card(s, { x: M, y: 4.62, w: 6.1, h: 1.6, fill: C.blueL, line: C.blueM });
-    s.addText('Satu benang merah', { x: M + 0.34, y: 4.82, w: 5.4, h: 0.32, fontFace: F, fontSize: 13, bold: true, color: C.blueD, margin: 0 });
-    s.addText('Mutu layanan PAUD tidak dibangun sendirian. Setiap bagian sesi ini bergerak dari “memahami” menuju “melakukan bersama mitra”.',
-      { x: M + 0.34, y: 5.16, w: 5.42, h: 0.9, fontFace: F, fontSize: 12, color: C.body, margin: 0, valign: 'top' });
+    card(s, { x: M, y: 4.62, w: 8.6, h: 1.72, fill: C.blueL, line: C.blueM });
+    s.addText('Satu benang merah', { x: M + 0.34, y: 4.84, w: 7.9, h: 0.32, fontFace: F, fontSize: 14, bold: true, color: C.blueD, margin: 0 });
+    s.addText('Mutu layanan PAUD tidak dibangun sendirian. Setiap bagian sesi ini bergerak dari “memahami” menuju “melakukan bersama mitra”, dan ditutup dengan aksi yang bisa langsung dikerjakan satuan.',
+      { x: M + 0.34, y: 5.2, w: 7.94, h: 1.0, fontFace: F, fontSize: 12.5, color: C.body, margin: 0, valign: 'top' });
+    await imgH(s, 'anak_melambai', SW - M, 4.5, 2.16, { right: true });
     footer(s);
     s.addNotes('Jelaskan alur lima bagian. Tekankan bahwa sesi ditutup dengan aksi nyata yang bisa langsung dikerjakan satuan.');
   }
@@ -181,10 +204,9 @@ async function sectionSlide(pres, num, title, sub, scene, tone) {
       s.addText(t, { x: x + 1.0, y: y + 0.16, w: cw - 1.22, h: 0.46, fontFace: F, fontSize: 14, bold: true, color: C.ink, margin: 0, valign: 'top' });
       s.addText(d, { x: x + 1.0, y: y + 0.64, w: cw - 1.22, h: 0.56, fontFace: F, fontSize: 11, color: C.body, margin: 0, valign: 'top' });
     }
-    const rr = await ratio('bermain'); const iw = 4.5, ih = iw / rr;
-    s.addImage({ data: await art('bermain'), x: 8.2, y: 3.2, w: iw, h: ih });
+    await imgH(s, 'guru_mengajar', 8.35, 2.5, 3.5, { frame: true });
     s.addText('“Anak belajar paling baik ketika seluruh kebutuhannya terpenuhi — bukan hanya kebutuhan belajarnya.”',
-      { x: 8.2, y: 1.8, w: iw, h: 1.2, fontFace: F, fontSize: 14, italic: true, color: C.greenD, margin: 0, valign: 'top' });
+      { x: 8.35, y: 1.66, w: 4.3, h: 0.8, fontFace: F, fontSize: 13.5, italic: true, color: C.greenD, margin: 0, valign: 'top' });
     footer(s);
     s.addNotes('Bacakan enam tujuan singkat. Minta peserta menandai satu tujuan yang paling mereka butuhkan.');
   }
@@ -193,8 +215,10 @@ async function sectionSlide(pres, num, title, sub, scene, tone) {
   {
     const s = baseSlide(pres, { bg: C.bg }); decor(s);
     heading(s, 'Refleksi Pembuka', 'Mari Berhenti Sejenak dan Bertanya');
-    const rr = await ratio('refleksi'); const ih = 4.3, iw = ih * rr;
-    s.addImage({ data: await art('refleksi'), x: M, y: 1.75, w: iw, h: ih });
+    const b = await imgH(s, 'bubble_refleksi', M, 1.72, 1.98);
+    s.addText('Sebelum membahas kebijakan dan strategi, mari kita mulai dari kondisi nyata di satuan masing-masing.',
+      { x: b.x + 0.5, y: b.y + 0.45, w: b.w - 1.2, h: 1.0, fontFace: F, fontSize: 13, color: C.ink, align: 'center', margin: 0, valign: 'middle' });
+    await imgH(s, 'anak_balok', M + 0.5, 4.0, 2.5, { frame: true });
     const qs = [
       ['Kebutuhan anak', 'Sudahkah anak di satuan kita terpenuhi kebutuhan pendidikan, kesehatan, gizi, pengasuhan, dan perlindungannya?', C.blue],
       ['Peta mitra', 'Siapa mitra yang sudah bekerja bersama kita hari ini — dan siapa yang belum tersentuh sama sekali?', C.green],
@@ -202,11 +226,11 @@ async function sectionSlide(pres, num, title, sub, scene, tone) {
     ];
     let y = 1.80;
     for (const [t, q, col] of qs) {
-      card(s, { x: 5.5, y, w: SW - M - 5.5, h: 1.32 });
-      s.addShape('ellipse', { x: 5.78, y: y + 0.34, w: 0.62, h: 0.62, fill: { color: col } });
-      s.addText('?', { x: 5.78, y: y + 0.34, w: 0.62, h: 0.62, fontFace: F, fontSize: 26, bold: true, color: C.white, align: 'center', valign: 'middle', margin: 0 });
-      s.addText(t, { x: 6.6, y: y + 0.20, w: 5.6, h: 0.32, fontFace: F, fontSize: 13, bold: true, color: col, margin: 0 });
-      s.addText(q, { x: 6.6, y: y + 0.54, w: 5.65, h: 0.68, fontFace: F, fontSize: 12.5, color: C.body, margin: 0, valign: 'top' });
+      card(s, { x: 6.5, y, w: SW - M - 6.5, h: 1.32 });
+      s.addShape('ellipse', { x: 6.78, y: y + 0.34, w: 0.62, h: 0.62, fill: { color: col } });
+      s.addText('?', { x: 6.78, y: y + 0.34, w: 0.62, h: 0.62, fontFace: F, fontSize: 26, bold: true, color: C.white, align: 'center', valign: 'middle', margin: 0 });
+      s.addText(t, { x: 7.6, y: y + 0.20, w: 4.6, h: 0.32, fontFace: F, fontSize: 13, bold: true, color: col, margin: 0 });
+      s.addText(q, { x: 7.6, y: y + 0.54, w: 4.65, h: 0.68, fontFace: F, fontSize: 12, color: C.body, margin: 0, valign: 'top' });
       y += 1.52;
     }
     footer(s);
@@ -216,7 +240,7 @@ async function sectionSlide(pres, num, title, sub, scene, tone) {
   /* ------------------------------------------------------ 5. DIVIDER 1 */
   await sectionSlide(pres, '01', 'Mengapa Kemitraan dan PAUD HI Mendesak?',
     'Potret layanan PAUD Indonesia, urgensi periode usia dini, dan tantangan yang dihadapi satuan.',
-    'sekolahramah', { bg: C.blueD });
+    'foto_anak_kebun', { bg: C.blueD });
 
   /* ------------------------------------------------ 6. POTRET LAYANAN */
   {
@@ -232,22 +256,21 @@ async function sectionSlide(pres, num, title, sub, scene, tone) {
     for (let i = 0; i < 4; i++) {
       const [big, lab, d, col] = stats[i];
       const x = M + i * (cw + 0.22);
-      card(s, { x, y: 1.62, w: cw, h: 2.34 });
-      s.addText(big, { x: x + 0.24, y: 1.80, w: cw - 0.48, h: 0.72, fontFace: F, fontSize: 34, bold: true, color: col, margin: 0 });
-      s.addText(lab, { x: x + 0.24, y: 2.52, w: cw - 0.48, h: 0.34, fontFace: F, fontSize: 12.5, bold: true, color: C.ink, margin: 0 });
-      s.addText(d, { x: x + 0.24, y: 2.88, w: cw - 0.48, h: 0.9, fontFace: F, fontSize: 11, color: C.body, margin: 0, valign: 'top' });
+      card(s, { x, y: 1.62, w: cw, h: 2.28 });
+      s.addText(big, { x: x + 0.24, y: 1.78, w: cw - 0.48, h: 0.7, fontFace: F, fontSize: 34, bold: true, color: col, margin: 0 });
+      s.addText(lab, { x: x + 0.24, y: 2.48, w: cw - 0.48, h: 0.34, fontFace: F, fontSize: 12.5, bold: true, color: C.ink, margin: 0 });
+      s.addText(d, { x: x + 0.24, y: 2.82, w: cw - 0.48, h: 0.9, fontFace: F, fontSize: 11, color: C.body, margin: 0, valign: 'top' });
     }
-    const rr = await ratio('data'); const ih = 2.85, iw = ih * rr;
-    s.addImage({ data: await art('data'), x: SW - M - iw + 0.1, y: 4.15, w: iw, h: ih });
-    card(s, { x: M, y: 4.25, w: 8.5, h: 2.2, fill: C.blueL, line: C.blueM });
-    s.addText('Apa artinya bagi satuan PAUD?', { x: M + 0.36, y: 4.46, w: 7.8, h: 0.34, fontFace: F, fontSize: 15, bold: true, color: C.blueD, margin: 0 });
+    await imgH(s, 'tabel_capaian', M, 4.02, 2.46, { frame: true });
+    card(s, { x: 5.96, y: 4.02, w: SW - M - 5.96, h: 2.72, fill: C.blueL, line: C.blueM });
+    s.addText('Apa artinya bagi satuan PAUD?', { x: 6.3, y: 4.22, w: 6.0, h: 0.34, fontFace: F, fontSize: 15, bold: true, color: C.blueD, margin: 0 });
     bullet(s, [
       'Capaian nasional bergerak naik — momentum ini perlu dijaga dari tingkat satuan.',
-      'Ketimpangan antarindikator sangat lebar: layanan “lunak” tinggi, sarana fisik tertinggal jauh.',
+      'Ketimpangan antarindikator sangat lebar: layanan berbasis kegiatan tinggi, sarana fisik tertinggal jauh.',
       'Sanitasi dan air bersih tidak bisa diselesaikan sekolah sendirian — di sinilah kemitraan bekerja.'
-    ], { x: M + 0.36, y: 4.86, w: 7.7, h: 1.3, size: 12 });
+    ], { x: 6.3, y: 4.62, w: 6.0, h: 2.0, size: 12 });
     s.addText('Sumber: Dapodik, cut off 31 Desember 2025 — Direktorat Pendidikan Anak Usia Dini.',
-      { x: M, y: SH - 0.78, w: 8.5, h: 0.26, fontFace: F, fontSize: 9, italic: true, color: C.mute, margin: 0 });
+      { x: M, y: 6.6, w: 6.0, h: 0.26, fontFace: F, fontSize: 8.5, italic: true, color: C.mute, margin: 0 });
     footer(s);
     s.addNotes('Tekankan kontras: indikator berbasis kegiatan sudah di atas 85%, sementara sarana sanitasi baru 8,95%.');
   }
@@ -256,8 +279,7 @@ async function sectionSlide(pres, num, title, sub, scene, tone) {
   {
     const s = baseSlide(pres, { bg: C.bg }); decor(s, C.greenL);
     heading(s, 'Urgensi', 'Usia Dini adalah Fondasi Kualitas SDM', C.green);
-    const rr = await ratio('tumbuh'); const ih = 3.5, iw = ih * rr;
-    s.addImage({ data: await art('tumbuh'), x: M, y: 1.66, w: iw, h: ih });
+    await imgH(s, 'anak_balok', M, 1.66, 3.3, { frame: true });
     const facts = [
       ['Periode yang tidak terulang', 'Perkembangan anak sejak janin sampai usia 6 tahun menentukan kualitas SDM di masa depan.', 'FaSeedling', C.green],
       ['Kebutuhan berjalan serentak', 'Gizi, kesehatan, pengasuhan, perlindungan, dan stimulasi harus dipenuhi secara simultan.', 'FaSyncAlt', C.blue],
@@ -265,10 +287,10 @@ async function sectionSlide(pres, num, title, sub, scene, tone) {
     ];
     let y = 1.70;
     for (const [t, d, ic, col] of facts) {
-      card(s, { x: 5.9, y, w: SW - M - 5.9, h: 1.12 });
-      await iconBadge(s, { x: 6.16, y: y + 0.26, d: 0.60, bg: col, icon: ic });
-      s.addText(t, { x: 6.94, y: y + 0.18, w: 5.2, h: 0.32, fontFace: F, fontSize: 14, bold: true, color: C.ink, margin: 0 });
-      s.addText(d, { x: 6.94, y: y + 0.52, w: 5.25, h: 0.52, fontFace: F, fontSize: 11.5, color: C.body, margin: 0, valign: 'top' });
+      card(s, { x: 5.4, y, w: SW - M - 5.4, h: 1.12 });
+      await iconBadge(s, { x: 5.66, y: y + 0.26, d: 0.60, bg: col, icon: ic });
+      s.addText(t, { x: 6.44, y: y + 0.18, w: 5.7, h: 0.32, fontFace: F, fontSize: 14, bold: true, color: C.ink, margin: 0 });
+      s.addText(d, { x: 6.44, y: y + 0.52, w: 5.75, h: 0.52, fontFace: F, fontSize: 11.5, color: C.body, margin: 0, valign: 'top' });
       y += 1.28;
     }
     const phases = [['0–2 tahun', '1.000 Hari Pertama Kehidupan', C.blue], ['3–4 tahun', 'Perluasan stimulasi & sosialisasi', C.green], ['5–6 tahun', 'Prioritas layanan PAUD & kesiapan sekolah', C.orange]];
@@ -282,7 +304,7 @@ async function sectionSlide(pres, num, title, sub, scene, tone) {
     s.addText('Rujukan: Perpres No. 60 Tahun 2013 tentang Pengembangan Anak Usia Dini Holistik Integratif.',
       { x: M, y: SH - 0.78, w: 9, h: 0.26, fontFace: F, fontSize: 9, italic: true, color: C.mute, margin: 0 });
     footer(s);
-    s.addNotes('Hindari klaim angka yang tidak berdasar. Gunakan rumusan Perpres 60/2013: kualitas SDM ditentukan kualitas perkembangan anak usia dini.');
+    s.addNotes('Gunakan rumusan Perpres 60/2013: kualitas SDM ditentukan kualitas perkembangan anak usia dini.');
   }
 
   /* -------------------------------------------------- 8. TANTANGAN */
@@ -295,7 +317,7 @@ async function sectionSlide(pres, num, title, sub, scene, tone) {
       ['Kapasitas pendidik terbatas', 'Guru diposisikan sebagai penghubung PAUD HI, namun belum semua memperoleh penguatan kapasitas.', 'FaChalkboardTeacher', C.orange],
       ['Koordinasi & data belum rutin', 'Koordinasi lintas sektor baru 75,46%; pemutakhiran data capaian belum menjadi kebiasaan.', 'FaClipboardCheck', C.purple]
     ];
-    const cw = 3.86, chh = 1.54;
+    const cw = 4.4, chh = 1.54;
     for (let i = 0; i < 4; i++) {
       const [t, d, ic, col] = ch[i];
       const x = M + (i % 2) * (cw + 0.28), y = 1.66 + Math.floor(i / 2) * (chh + 0.26);
@@ -304,8 +326,7 @@ async function sectionSlide(pres, num, title, sub, scene, tone) {
       s.addText(t, { x: x + 1.02, y: y + 0.2, w: cw - 1.26, h: 0.5, fontFace: F, fontSize: 13.5, bold: true, color: C.ink, margin: 0, valign: 'top' });
       s.addText(d, { x: x + 1.02, y: y + 0.72, w: cw - 1.28, h: 0.74, fontFace: F, fontSize: 11, color: C.body, margin: 0, valign: 'top' });
     }
-    const rr = await ratio('posyandu'); const ih = 2.9, iw = ih * rr;
-    s.addImage({ data: await art('posyandu'), x: SW - M - iw, y: 1.72, w: iw, h: ih });
+    await imgH(s, 'gedung_paud', SW - M, 1.72, 2.94, { right: true, frame: true });
     card(s, { x: M, y: 5.02, w: SW - M * 2, h: 1.42, fill: C.orangeL, line: C.orangeM });
     s.addText('Benang merahnya sama', { x: M + 0.36, y: 5.18, w: 5, h: 0.32, fontFace: F, fontSize: 14, bold: true, color: C.orangeD, margin: 0 });
     s.addText('Keempat hambatan di atas tidak dapat diselesaikan oleh satuan PAUD sendirian. Semuanya bermuara pada satu kebutuhan yang sama: kemitraan yang terencana, tercatat, dan berkelanjutan dengan pihak di luar sekolah.',
@@ -317,16 +338,16 @@ async function sectionSlide(pres, num, title, sub, scene, tone) {
   /* ------------------------------------------------------ 9. DIVIDER 2 */
   await sectionSlide(pres, '02', 'Memahami PAUD Holistik Integratif',
     'Definisi, lima layanan esensial, prinsip penyelenggaraan, kerangka regulasi, dan delapan indikator di satuan PAUD.',
-    'kelas', { bg: C.greenD });
+    'guru_membaca', { bg: C.greenD });
 
   /* --------------------------------------------------- 10. DEFINISI */
   {
     const s = baseSlide(pres); decor(s, C.greenL);
     heading(s, 'Definisi', 'Apa Itu PAUD Holistik Integratif?', C.green);
-    card(s, { x: M, y: 1.66, w: 7.3, h: 2.34, fill: C.greenL, line: C.greenM });
+    card(s, { x: M, y: 1.66, w: 7.4, h: 2.34, fill: C.greenL, line: C.greenM });
     s.addImage({ data: await icon('FaQuoteLeft', '#' + C.green), x: M + 0.36, y: 1.92, w: 0.42, h: 0.42 });
     s.addText('Upaya pengembangan anak usia dini yang dilakukan untuk memenuhi kebutuhan esensial anak yang beragam dan saling terkait secara simultan, sistematis, dan terintegrasi.',
-      { x: M + 0.98, y: 1.9, w: 6.0, h: 1.4, fontFace: F, fontSize: 16, color: C.ink, margin: 0, valign: 'top' });
+      { x: M + 0.98, y: 1.9, w: 6.1, h: 1.4, fontFace: F, fontSize: 16, color: C.ink, margin: 0, valign: 'top' });
     s.addText('Perpres No. 60 Tahun 2013', { x: M + 0.98, y: 3.34, w: 6.0, h: 0.3, fontFace: F, fontSize: 12, bold: true, color: C.greenD, margin: 0 });
     const keys = [
       ['Simultan', 'Kebutuhan anak dipenuhi pada waktu yang bersamaan, tidak bergiliran.', C.blue, 'FaSyncAlt'],
@@ -335,16 +356,15 @@ async function sectionSlide(pres, num, title, sub, scene, tone) {
     ];
     let y = 4.2;
     for (const [t, d, col, ic] of keys) {
-      card(s, { x: M, y, w: 7.3, h: 0.86 });
+      card(s, { x: M, y, w: 7.4, h: 0.86 });
       await iconBadge(s, { x: M + 0.26, y: y + 0.16, d: 0.54, bg: col, icon: ic });
       s.addText(t, { x: M + 0.98, y: y + 0.12, w: 1.6, h: 0.3, fontFace: F, fontSize: 13.5, bold: true, color: col, margin: 0 });
-      s.addText(d, { x: M + 2.5, y: y + 0.12, w: 4.66, h: 0.62, fontFace: F, fontSize: 11.5, color: C.body, margin: 0, valign: 'top' });
+      s.addText(d, { x: M + 2.5, y: y + 0.12, w: 4.76, h: 0.62, fontFace: F, fontSize: 11.5, color: C.body, margin: 0, valign: 'top' });
       y += 0.98;
     }
-    const rr = await ratio('kelas'); const iw = 4.72, ih = iw / rr;
-    s.addImage({ data: await art('kelas'), x: SW - M - iw, y: 1.9, w: iw, h: ih });
+    await imgH(s, 'roda_paudhi', 10.7, 1.7, 4.3, { center: true });
     s.addText('PAUD HI bukan program tambahan, melainkan cara satuan PAUD memandang dan melayani anak secara utuh.',
-      { x: SW - M - iw, y: 5.35, w: iw, h: 0.8, fontFace: F, fontSize: 12.5, italic: true, color: C.greenD, margin: 0, valign: 'top' });
+      { x: 8.4, y: 6.06, w: 4.3, h: 0.7, fontFace: F, fontSize: 11.5, italic: true, color: C.greenD, align: 'center', margin: 0, valign: 'top' });
     footer(s);
     s.addNotes('Tekankan tiga kata kunci: simultan, sistematis, terintegrasi. Ini yang membedakan PAUD HI dari kegiatan insidental.');
   }
@@ -370,14 +390,11 @@ async function sectionSlide(pres, num, title, sub, scene, tone) {
       s.addText(t, { x: x + 0.16, y: 3.0, w: cw - 0.32, h: 0.36, fontFace: F, fontSize: 14.5, bold: true, color: C.ink, align: 'center', margin: 0 });
       s.addText(d, { x: x + 0.2, y: 3.38, w: cw - 0.4, h: 0.86, fontFace: F, fontSize: 11, color: C.body, align: 'center', margin: 0, valign: 'top' });
     }
-    card(s, { x: M, y: 4.66, w: 7.4, h: 1.6, fill: C.blueL, line: C.blueM });
-    s.addText('Semua anak, tanpa terkecuali', { x: M + 0.36, y: 4.86, w: 6.6, h: 0.32, fontFace: F, fontSize: 14, bold: true, color: C.blueD, margin: 0 });
-    s.addText('Kelima layanan ini melekat pada setiap anak usia dini — termasuk anak dengan disabilitas, anak dari keluarga rentan, dan anak yang belum memiliki dokumen kependudukan. Satuan PAUD memastikan tidak ada anak yang terlewat.',
-      { x: M + 0.36, y: 5.2, w: 6.66, h: 0.92, fontFace: F, fontSize: 12, color: C.body, margin: 0, valign: 'top' });
-    const rr = await ratio('perlindungan'); const ih = 1.66, iw = ih * rr;
-    s.addImage({ data: await art('perlindungan'), x: 8.22, y: 4.62, w: iw, h: ih });
-    s.addText('Sektor pendidikan menjadi rumah kedua bagi anak — tempat layanan esensial lainnya ikut didorong pemenuhannya melalui koordinasi lintas sektor.',
-      { x: 10.05, y: 4.84, w: 2.66, h: 1.4, fontFace: F, fontSize: 11, color: C.body, margin: 0, valign: 'top' });
+    card(s, { x: M, y: 4.66, w: 9.0, h: 1.6, fill: C.blueL, line: C.blueM });
+    s.addText('Semua anak, tanpa terkecuali', { x: M + 0.36, y: 4.86, w: 8.2, h: 0.32, fontFace: F, fontSize: 14, bold: true, color: C.blueD, margin: 0 });
+    s.addText('Kelima layanan ini melekat pada setiap anak usia dini — termasuk anak dengan disabilitas, anak dari keluarga rentan, dan anak yang belum memiliki dokumen kependudukan. Satuan PAUD menjadi rumah kedua tempat layanan esensial lainnya ikut didorong pemenuhannya melalui koordinasi lintas sektor.',
+      { x: M + 0.36, y: 5.2, w: 8.3, h: 0.96, fontFace: F, fontSize: 12, color: C.body, margin: 0, valign: 'top' });
+    await imgH(s, 'anak_tas', SW - M - 0.15, 4.5, 2.0, { right: true });
     footer(s);
     s.addNotes('Lima layanan esensial: pendidikan; kesehatan dan gizi; pengasuhan; perlindungan; kesejahteraan.');
   }
@@ -401,13 +418,17 @@ async function sectionSlide(pres, num, title, sub, scene, tone) {
       s.addText(t, { x: x + 1.1, y: y + 0.26, w: cw - 1.3, h: 0.36, fontFace: F, fontSize: 16, bold: true, color: col, margin: 0 });
       s.addText(d, { x: x + 1.1, y: y + 0.64, w: cw - 1.34, h: 0.74, fontFace: F, fontSize: 11.5, color: C.body, margin: 0, valign: 'top' });
     }
-    const rr = await ratio('kolaborasi'); const ih = 3.4, iw = ih * rr;
-    s.addImage({ data: await art('kolaborasi'), x: SW - M - iw - 0.5, y: 1.7, w: iw, h: ih });
+    card(s, { x: 8.4, y: 1.72, w: SW - M - 8.4, h: 3.08, fill: C.purpleL, line: 'DED4F2' });
+    s.addText('Dua elemen PAUD Berkualitas yang paling terkait', { x: 8.62, y: 1.86, w: 3.9, h: 0.5, fontFace: F, fontSize: 12.5, bold: true, color: C.purple, align: 'center', margin: 0, valign: 'top' });
+    await imgH(s, 'badge_kemitraan', 9.55, 2.44, 1.16, { center: true });
+    await imgH(s, 'badge_esensial', 11.55, 2.44, 1.16, { center: true });
+    s.addText('Kemitraan dengan orang tua dan dukungan pemenuhan kebutuhan esensial anak usia dini adalah dua elemen yang paling langsung diwujudkan lewat kemitraan.',
+      { x: 8.66, y: 3.74, w: 3.82, h: 0.96, fontFace: F, fontSize: 10.5, color: C.body, align: 'center', margin: 0, valign: 'top' });
     card(s, { x: M, y: 5.06, w: SW - M * 2, h: 1.16, fill: C.purpleL, line: 'DED4F2' });
     s.addText('Keempat prinsip ini menjadi ukuran sederhana: bila satu layanan berjalan tanpa yang lain, atau berjalan tanpa mitra, penyelenggaraan kita belum benar-benar holistik integratif.',
       { x: M + 0.36, y: 5.32, w: SW - M * 2 - 0.72, h: 0.7, fontFace: F, fontSize: 13, color: C.ink, margin: 0, valign: 'top' });
     footer(s);
-    s.addNotes('Gunakan empat prinsip ini sebagai alat cek cepat saat menilai kegiatan di satuan.');
+    s.addNotes('Empat elemen PAUD Berkualitas di kanan berasal dari panduan Direktorat PAUD: pembelajaran berkualitas, kemitraan orang tua, dukungan pemenuhan kebutuhan esensial, dan kepemimpinan untuk perbaikan berkelanjutan.');
   }
 
   /* ----------------------------------------------------- 13. REGULASI */
@@ -416,25 +437,28 @@ async function sectionSlide(pres, num, title, sub, scene, tone) {
     heading(s, 'Landasan Hukum', 'Kerangka Regulasi yang Mendasari PAUD HI');
     const tl = [
       ['UU No. 20/2003', 'Sistem Pendidikan Nasional', 'PAUD sebagai bagian utuh sistem pendidikan nasional.', C.blue, 'FaBalanceScale'],
-      ['Perpres No. 60/2013', 'PAUD Holistik Integratif', 'Payung utama: kebutuhan esensial anak dipenuhi secara simultan dan terintegrasi.', C.green, 'FaGavel'],
+      ['Perpres No. 60/2013', 'PAUD Holistik Integratif', 'Payung utama: kebutuhan esensial anak dipenuhi simultan dan terintegrasi.', C.green, 'FaGavel'],
       ['Permenko PMK No. 1/2019', 'Gugus Tugas PAUD HI', 'Kemendikdasmen sebagai sub gugus tugas bidang pendidikan.', C.orange, 'FaSitemap'],
       ['Perpres No. 72/2021', 'Percepatan Penurunan Stunting', 'Sektor pendidikan berkontribusi melalui intervensi sensitif.', C.red, 'FaHeartbeat'],
       ['RAN PAUD HI', 'Bidang Pendidikan', 'Akses, kualitas layanan, dan kompetensi pendidik sebagai penghubung.', C.purple, 'FaRoad']
     ];
     const cw = (SW - M * 2 - 0.2 * 4) / 5;
-    s.addShape('line', { x: M + cw / 2, y: 2.42, w: (cw + 0.2) * 4, h: 0, line: { color: C.line, width: 2.5, dashType: 'dash' } });
+    s.addShape('line', { x: M + cw / 2, y: 2.26, w: (cw + 0.2) * 4, h: 0, line: { color: C.line, width: 2.5, dashType: 'dash' } });
     for (let i = 0; i < 5; i++) {
       const [a, b, d, col, ic] = tl[i];
       const x = M + i * (cw + 0.2);
-      s.addShape('ellipse', { x: x + cw / 2 - 0.42, y: 2.0, w: 0.84, h: 0.84, fill: { color: col }, line: { color: C.white, width: 3 } });
-      s.addImage({ data: await icon(ic, '#FFFFFF'), x: x + cw / 2 - 0.22, y: 2.2, w: 0.44, h: 0.44 });
-      card(s, { x, y: 3.06, w: cw, h: 2.5 });
-      s.addText(a, { x: x + 0.2, y: 3.22, w: cw - 0.4, h: 0.36, fontFace: F, fontSize: 13.5, bold: true, color: col, align: 'center', margin: 0 });
-      s.addText(b, { x: x + 0.18, y: 3.58, w: cw - 0.36, h: 0.6, fontFace: F, fontSize: 12, bold: true, color: C.ink, align: 'center', margin: 0, valign: 'top' });
-      s.addText(d, { x: x + 0.2, y: 4.2, w: cw - 0.4, h: 1.2, fontFace: F, fontSize: 10.5, color: C.body, align: 'center', margin: 0, valign: 'top' });
+      s.addShape('ellipse', { x: x + cw / 2 - 0.42, y: 1.84, w: 0.84, h: 0.84, fill: { color: col }, line: { color: C.white, width: 3 } });
+      s.addImage({ data: await icon(ic, '#FFFFFF'), x: x + cw / 2 - 0.22, y: 2.04, w: 0.44, h: 0.44 });
+      card(s, { x, y: 2.9, w: cw, h: 2.36 });
+      s.addText(a, { x: x + 0.2, y: 3.04, w: cw - 0.4, h: 0.36, fontFace: F, fontSize: 13.5, bold: true, color: col, align: 'center', margin: 0 });
+      s.addText(b, { x: x + 0.18, y: 3.4, w: cw - 0.36, h: 0.56, fontFace: F, fontSize: 12, bold: true, color: C.ink, align: 'center', margin: 0, valign: 'top' });
+      s.addText(d, { x: x + 0.2, y: 3.98, w: cw - 0.4, h: 1.16, fontFace: F, fontSize: 10.5, color: C.body, align: 'center', margin: 0, valign: 'top' });
     }
-    s.addText('Regulasi menegaskan satu hal: PAUD HI adalah kerja bersama lintas sektor, bukan tugas satu instansi.',
-      { x: M, y: 5.76, w: SW - M * 2, h: 0.4, fontFace: F, fontSize: 13, bold: true, color: C.ink, align: 'center', margin: 0 });
+    card(s, { x: M, y: 5.42, w: SW - M * 2, h: 1.42, fill: C.blueL, line: C.blueM });
+    await imgH(s, 'simbol_regulasi', M + 0.16, 5.55, 1.16);
+    await imgH(s, 'roda_lintas_kl', SW - M - 0.16, 5.55, 1.16, { right: true });
+    s.addText('Regulasi menegaskan satu hal: PAUD HI adalah kerja bersama lintas sektor, bukan tugas satu instansi. Gugus Tugas PAUD HI beranggotakan kementerian dan lembaga lintas bidang — pendidikan, kesehatan, sosial, agama, dalam negeri, desa, dan kependudukan.',
+      { x: 2.72, y: 5.58, w: 8.6, h: 1.1, fontFace: F, fontSize: 12, color: C.ink, margin: 0, valign: 'middle' });
     footer(s);
     s.addNotes('Tidak perlu menghafal pasal. Cukup pahami: ada payung hukum yang mewajibkan koordinasi lintas sektor.');
   }
@@ -472,29 +496,29 @@ async function sectionSlide(pres, num, title, sub, scene, tone) {
   {
     const s = baseSlide(pres, { bg: C.bg }); decor(s, C.greenL);
     heading(s, 'Ukuran di Satuan', 'Delapan Indikator PAUD HI di Satuan PAUD', C.green);
+    await imgH(s, 'roda_8indikator', 2.95, 1.68, 4.5, { center: true });
     const ind = [
       ['Kelas Orang Tua', 'Wadah berbagi informasi kebutuhan esensial anak.', C.blue, 'FaUserFriends'],
       ['Pemantauan Pertumbuhan', 'Berat badan, tinggi badan, dan lingkar kepala.', C.green, 'FaWeight'],
       ['Pemantauan Perkembangan', 'DDTK/KPSP/KMS/KIA/KKA secara berkala.', C.orange, 'FaChild'],
       ['Koordinasi Lintas Sektor', 'Bersama unit lain terkait kesehatan dan gizi.', C.purple, 'FaSitemap'],
       ['Penerapan PHBS', 'Perilaku hidup bersih dan sehat melalui pembiasaan.', C.teal, 'FaSoap'],
-      ['PMT & Makanan Bergizi', 'Diberikan secara berkala, minimal tiga bulan sekali.', C.red, 'FaUtensils'],
+      ['PMT & Makanan Bergizi', 'Diberikan berkala, minimal tiga bulan sekali.', C.red, 'FaUtensils'],
       ['Kepemilikan NIK', 'Memastikan setiap peserta didik memiliki identitas.', C.blueD, 'FaIdCard'],
       ['Sanitasi & Air Bersih', 'Fasilitas sederhana dengan air mengalir tersedia.', C.greenD, 'FaFaucet']
     ];
-    const cw = 2.84, chh = 1.86;
+    const cw = 3.66, chh = 1.04;
     for (let i = 0; i < 8; i++) {
       const [t, d, col, ic] = ind[i];
-      const x = M + (i % 4) * (cw + 0.24), y = 1.62 + Math.floor(i / 4) * (chh + 0.24);
+      const x = 5.4 + (i % 2) * (cw + 0.24), y = 1.62 + Math.floor(i / 2) * (chh + 0.13);
       card(s, { x, y, w: cw, h: chh });
-      await iconBadge(s, { x: x + 0.24, y: y + 0.24, d: 0.62, bg: col, icon: ic });
-      s.addText(String(i + 1).padStart(2, '0'), { x: x + cw - 0.86, y: y + 0.2, w: 0.62, h: 0.4, fontFace: F, fontSize: 20, bold: true, color: col, transparency: 65, align: 'right', margin: 0 });
-      s.addText(t, { x: x + 0.24, y: y + 0.94, w: cw - 0.48, h: 0.48, fontFace: F, fontSize: 12.5, bold: true, color: C.ink, margin: 0, valign: 'top' });
-      s.addText(d, { x: x + 0.24, y: y + 1.42, w: cw - 0.48, h: 0.4, fontFace: F, fontSize: 10, color: C.body, margin: 0, valign: 'top' });
+      await iconBadge(s, { x: x + 0.2, y: y + 0.25, d: 0.54, bg: col, icon: ic });
+      s.addText(`${i + 1}. ${t}`, { x: x + 0.86, y: y + 0.1, w: cw - 1.06, h: 0.42, fontFace: F, fontSize: 12.5, bold: true, color: C.ink, margin: 0, valign: 'top' });
+      s.addText(d, { x: x + 0.86, y: y + 0.52, w: cw - 1.06, h: 0.44, fontFace: F, fontSize: 10, color: C.body, margin: 0, valign: 'top' });
     }
-    card(s, { x: M, y: 5.68, w: SW - M * 2, h: 0.86, fill: C.greenL, line: C.greenM });
+    card(s, { x: M, y: 6.22, w: SW - M * 2, h: 0.72, fill: C.greenL, line: C.greenM });
     s.addText('Delapan indikator ini dilaporkan melalui Dapodik. Memutakhirkannya bukan pekerjaan administratif semata — ia menjadi dasar perencanaan dan dukungan yang diterima satuan.',
-      { x: M + 0.36, y: 5.8, w: SW - M * 2 - 0.72, h: 0.6, fontFace: F, fontSize: 12.5, color: C.ink, margin: 0, valign: 'middle' });
+      { x: M + 0.36, y: 6.28, w: SW - M * 2 - 0.72, h: 0.6, fontFace: F, fontSize: 12.5, color: C.ink, margin: 0, valign: 'middle' });
     footer(s);
     s.addNotes('Minta peserta mencentang indikator yang sudah dan belum dipenuhi satuannya.');
   }
@@ -505,13 +529,12 @@ async function sectionSlide(pres, num, title, sub, scene, tone) {
     heading(s, 'Capaian Nasional', 'Pemenuhan Delapan Indikator PAUD HI');
     const labels = ['Kelas orang tua', 'Pemantauan NIK', 'Penerapan PHBS', 'Pemantauan pertumbuhan', 'Pemantauan perkembangan', 'PMT & makanan bergizi', 'Koordinasi lintas sektor', 'Sanitasi & air bersih'];
     const vals = [98.59, 95.86, 94.75, 90.84, 89.12, 86.94, 75.46, 8.95];
-    card(s, { x: M, y: 1.62, w: 7.9, h: 4.5, noShadow: false });
+    card(s, { x: M, y: 1.62, w: 7.9, h: 4.5 });
     s.addChart(pres.ChartType.bar, [{ name: 'Persentase satuan PAUD', labels, values: vals }], {
       x: M + 0.12, y: 1.74, w: 7.66, h: 4.26,
       barDir: 'bar', barGapWidthPct: 42,
       chartColors: [C.green, C.green, C.green, C.blue, C.blue, C.blue, C.orange, C.red],
-      varyColors: true,
-      showLegend: false, showTitle: false,
+      varyColors: true, showLegend: false, showTitle: false,
       showValue: true, dataLabelPosition: 'outEnd', dataLabelFormatCode: '0.00"%"',
       dataLabelFontSize: 10, dataLabelFontFace: F, dataLabelColor: C.ink,
       catAxisLabelFontFace: F, catAxisLabelFontSize: 10.5, catAxisLabelColor: C.body,
@@ -542,17 +565,17 @@ async function sectionSlide(pres, num, title, sub, scene, tone) {
   /* ----------------------------------------------------- 17. DIVIDER 3 */
   await sectionSlide(pres, '03', 'Kemitraan Strategis: Kunci Layanan Holistik',
     'Konsep kemitraan, peta pemangku kepentingan, trisentra pendidikan, tahapan membangun, dan instrumen pendukungnya.',
-    'rapat', { bg: C.orangeD });
+    'foto_anak_kelas', { bg: C.orangeD });
 
   /* ------------------------------------------------ 18. KONSEP MITRA */
   {
     const s = baseSlide(pres); decor(s, C.orangeL);
     heading(s, 'Konsep', 'Ciri Kemitraan yang Benar-benar Strategis', C.orange);
-    const rr = await ratio('kolaborasi'); const ih = 3.5, iw = ih * rr;
-    s.addImage({ data: await art('kolaborasi'), x: M - 0.15, y: 2.5, w: iw, h: ih });
-    card(s, { x: M, y: 1.64, w: 4.5, h: 0.94, fill: C.orangeL, line: C.orangeM });
+    card(s, { x: M, y: 1.64, w: 4.6, h: 1.3, fill: C.orangeL, line: C.orangeM });
     s.addText('Kemitraan strategis adalah kerja sama terencana antara satuan PAUD dan pihak lain untuk memenuhi kebutuhan esensial anak secara berkelanjutan.',
-      { x: M + 0.24, y: 1.72, w: 4.02, h: 0.8, fontFace: F, fontSize: 11.5, color: C.ink, margin: 0, valign: 'middle' });
+      { x: M + 0.26, y: 1.76, w: 4.08, h: 1.06, fontFace: F, fontSize: 12, color: C.ink, margin: 0, valign: 'middle' });
+    await imgH(s, 'badge_kemitraan', M + 2.3, 3.06, 2.5, { center: true });
+    await imgH(s, 'anak_bermain', M, 5.5, 1.1, { frame: true });
     const pr = [
       ['Kesetaraan', 'Semua pihak duduk sebagai mitra, bukan atasan dan bawahan.', C.blue, 'FaBalanceScale'],
       ['Kepercayaan', 'Dibangun melalui komunikasi rutin dan komitmen yang ditepati.', C.green, 'FaHandshake'],
@@ -562,10 +585,10 @@ async function sectionSlide(pres, num, title, sub, scene, tone) {
     ];
     let y = 1.64;
     for (const [t, d, col, ic] of pr) {
-      card(s, { x: 5.5, y, w: SW - M - 5.5, h: 0.9 });
-      await iconBadge(s, { x: 5.74, y: y + 0.16, d: 0.58, bg: col, icon: ic });
-      s.addText(t, { x: 6.48, y: y + 0.14, w: 2.2, h: 0.32, fontFace: F, fontSize: 13, bold: true, color: col, margin: 0 });
-      s.addText(d, { x: 8.6, y: y + 0.14, w: 3.5, h: 0.66, fontFace: F, fontSize: 11, color: C.body, margin: 0, valign: 'middle' });
+      card(s, { x: 5.6, y, w: SW - M - 5.6, h: 0.9 });
+      await iconBadge(s, { x: 5.84, y: y + 0.16, d: 0.58, bg: col, icon: ic });
+      s.addText(t, { x: 6.58, y: y + 0.14, w: 2.2, h: 0.32, fontFace: F, fontSize: 13, bold: true, color: col, margin: 0 });
+      s.addText(d, { x: 8.7, y: y + 0.14, w: 3.4, h: 0.66, fontFace: F, fontSize: 11, color: C.body, margin: 0, valign: 'middle' });
       y += 0.99;
     }
     footer(s);
@@ -577,9 +600,9 @@ async function sectionSlide(pres, num, title, sub, scene, tone) {
     const s = baseSlide(pres, { bg: C.bg }); decor(s);
     heading(s, 'Ekosistem', 'Peta Pemangku Kepentingan Satuan PAUD');
     const cx = 7.2, cy = 4.15;
-    s.addShape('ellipse', { x: cx - 2.5, y: cy - 2.5, w: 5.0, h: 5.0, fill: { color: C.blueL, transparency: 55 }, line: { width: 0 } });
-    s.addShape('ellipse', { x: cx - 1.02, y: cy - 1.02, w: 2.04, h: 2.04, fill: { color: C.blue }, line: { color: C.white, width: 4 }, shadow: sh({ blur: 18, opacity: 0.18 }) });
-    s.addText('SATUAN\nPAUD', { x: cx - 1.0, y: cy - 0.42, w: 2.0, h: 0.9, fontFace: F, fontSize: 17, bold: true, color: C.white, align: 'center', margin: 0 });
+    await imgH(s, 'roda_puzzle', cx, cy - 2.15, 4.3, { center: true });
+    s.addShape('ellipse', { x: cx - 0.92, y: cy - 0.92, w: 1.84, h: 1.84, fill: { color: C.blue }, line: { color: C.white, width: 4 }, shadow: sh({ blur: 18, opacity: 0.18 }) });
+    s.addText('SATUAN\nPAUD', { x: cx - 0.9, y: cy - 0.42, w: 1.8, h: 0.9, fontFace: F, fontSize: 16, bold: true, color: C.white, align: 'center', margin: 0 });
     const nodes = [
       ['Dinas Pendidikan', C.blueD, 'FaLandmark', -90],
       ['Puskesmas & Dinkes', C.green, 'FaHospital', -45],
@@ -590,11 +613,7 @@ async function sectionSlide(pres, num, title, sub, scene, tone) {
       ['Pemerintah Desa', C.greenD, 'FaCity', 180],
       ['Dunia Usaha & Mitra', C.blue, 'FaBriefcase', 225]
     ];
-    const rx = 3.9, ry = 2.2, bw = 2.34, bh = 0.62;
-    s.addShape('ellipse', {
-      x: cx - rx, y: cy - ry, w: rx * 2, h: ry * 2,
-      fill: { type: 'none' }, line: { color: C.blueM, width: 1.75, dashType: 'sysDash' }
-    });
+    const rx = 4.0, ry = 2.28, bw = 2.34, bh = 0.62;
     for (const [t, col, ic, ang] of nodes) {
       const a = ang * Math.PI / 180;
       const nx = cx + Math.cos(a) * rx - bw / 2, ny = cy + Math.sin(a) * ry - bh / 2;
@@ -653,16 +672,14 @@ async function sectionSlide(pres, num, title, sub, scene, tone) {
     for (let i = 0; i < 3; i++) {
       const [t, d, col, ic] = tri[i];
       const x = M + i * (cw + 0.3);
-      card(s, { x, y: 1.64, w: cw, h: 2.06 });
-      await iconBadge(s, { x: x + 0.28, y: y0(), d: 0.7, bg: col, icon: ic });
-      function y0() { return 1.88; }
+      card(s, { x, y: 1.64, w: cw, h: 1.94 });
+      await iconBadge(s, { x: x + 0.28, y: 1.88, d: 0.7, bg: col, icon: ic });
       s.addText(t, { x: x + 1.12, y: 1.86, w: cw - 1.3, h: 0.4, fontFace: F, fontSize: 17, bold: true, color: col, margin: 0 });
       s.addText(d, { x: x + 0.3, y: 2.7, w: cw - 0.6, h: 0.9, fontFace: F, fontSize: 11.5, color: C.body, margin: 0, valign: 'top' });
     }
-    const rr = await ratio('trisentra'); const iw = 9.2, ih = iw / rr;
-    s.addImage({ data: await art('trisentra'), x: (SW - iw) / 2, y: 3.8, w: iw, h: ih });
+    await imgH(s, 'halaman_paud', SW / 2 + 1.5, 3.76, 3.06, { center: true, frame: true });
     s.addText('Iklim partisipatif tumbuh saat ketiganya bergerak dengan informasi dan tujuan yang sama.',
-      { x: M, y: 6.62, w: 9, h: 0.3, fontFace: F, fontSize: 11.5, italic: true, color: C.body, margin: 0 });
+      { x: M, y: 4.4, w: 3.4, h: 1.4, fontFace: F, fontSize: 13, italic: true, color: C.body, margin: 0, valign: 'top' });
     footer(s);
     s.addNotes('Trisentra: keluarga, satuan pendidikan, masyarakat. Semuanya perlu informasi yang sama.');
   }
@@ -710,11 +727,11 @@ async function sectionSlide(pres, num, title, sub, scene, tone) {
     ];
     let y = 1.94;
     for (const [t, d, ic] of instr) {
-      card(s, { x: M, y, w: 5.9, h: 1.0 });
-      await iconBadge(s, { x: M + 0.24, y: y + 0.2, d: 0.6, bg: C.blue, icon: ic });
-      s.addText(t, { x: M + 0.98, y: y + 0.14, w: 4.7, h: 0.32, fontFace: F, fontSize: 13, bold: true, color: C.ink, margin: 0 });
-      s.addText(d, { x: M + 0.98, y: y + 0.46, w: 4.74, h: 0.48, fontFace: F, fontSize: 11, color: C.body, margin: 0, valign: 'top' });
-      y += 1.1;
+      card(s, { x: M, y, w: 5.9, h: 0.94 });
+      await iconBadge(s, { x: M + 0.24, y: y + 0.18, d: 0.58, bg: C.blue, icon: ic });
+      s.addText(t, { x: M + 0.96, y: y + 0.1, w: 4.7, h: 0.32, fontFace: F, fontSize: 13, bold: true, color: C.ink, margin: 0 });
+      s.addText(d, { x: M + 0.96, y: y + 0.42, w: 4.76, h: 0.46, fontFace: F, fontSize: 11, color: C.body, margin: 0, valign: 'top' });
+      y += 1.04;
     }
     s.addText('SUMBER PEMBIAYAAN', { x: 6.94, y: 1.6, w: 5.6, h: 0.3, fontFace: F, fontSize: 11, bold: true, color: C.green, charSpacing: 1.5, margin: 0 });
     const dana = [
@@ -725,14 +742,16 @@ async function sectionSlide(pres, num, title, sub, scene, tone) {
     ];
     y = 1.94;
     for (const [t, d, ic] of dana) {
-      card(s, { x: 6.94, y, w: SW - M - 6.94, h: 1.0 });
-      await iconBadge(s, { x: 7.18, y: y + 0.2, d: 0.6, bg: C.green, icon: ic });
-      s.addText(t, { x: 7.92, y: y + 0.14, w: 4.5, h: 0.32, fontFace: F, fontSize: 13, bold: true, color: C.ink, margin: 0 });
-      s.addText(d, { x: 7.92, y: y + 0.46, w: 4.5, h: 0.48, fontFace: F, fontSize: 11, color: C.body, margin: 0, valign: 'top' });
-      y += 1.1;
+      card(s, { x: 6.94, y, w: SW - M - 6.94, h: 0.94 });
+      await iconBadge(s, { x: 7.18, y: y + 0.18, d: 0.58, bg: C.green, icon: ic });
+      s.addText(t, { x: 7.9, y: y + 0.1, w: 4.5, h: 0.32, fontFace: F, fontSize: 13, bold: true, color: C.ink, margin: 0 });
+      s.addText(d, { x: 7.9, y: y + 0.42, w: 4.5, h: 0.46, fontFace: F, fontSize: 11, color: C.body, margin: 0, valign: 'top' });
+      y += 1.04;
     }
-    s.addText('Prinsipnya: mulai dari yang tersedia. Banyak perbaikan layanan tidak memerlukan anggaran baru, melainkan koordinasi yang lebih baik.',
-      { x: M, y: 6.34, w: SW - M * 2, h: 0.4, fontFace: F, fontSize: 12.5, bold: true, color: C.ink, align: 'center', margin: 0 });
+    card(s, { x: M, y: 6.06, w: SW - M * 2, h: 0.82, fill: C.blueL, line: C.blueM });
+    await imgH(s, 'seri_panduan', M + 0.14, 6.14, 0.66);
+    s.addText('Rujukan praktis: seri Panduan Penyelenggaraan PAUD Berkualitas terbitan Direktorat PAUD. Mulailah dari sumber daya yang tersedia — banyak perbaikan layanan tidak memerlukan anggaran baru, melainkan koordinasi yang lebih baik.',
+      { x: 2.1, y: 6.12, w: 10.4, h: 0.7, fontFace: F, fontSize: 11.5, color: C.ink, margin: 0, valign: 'middle' });
     footer(s);
     s.addNotes('Ingatkan aturan penggunaan setiap sumber dana tetap mengikuti juknis yang berlaku.');
   }
@@ -740,31 +759,31 @@ async function sectionSlide(pres, num, title, sub, scene, tone) {
   /* ----------------------------------------------------- 24. DIVIDER 4 */
   await sectionSlide(pres, '04', 'Praktik Baik dan Aksi Nyata',
     'Pembelajaran dari satuan PAUD, strategi peningkatan mutu, rencana 30–60–90 hari, serta monitoring dan evaluasi.',
-    'gotongroyong', { bg: C.purple });
+    'halaman_paud', { bg: C.purple });
 
   /* ---------------------------------------------- 25. PRAKTIK BAIK */
   {
     const s = baseSlide(pres); decor(s, C.purpleL);
     heading(s, 'Belajar dari Lapangan', 'Empat Pola Praktik Baik yang Bisa Ditiru', C.purple);
     const cases = [
-      ['Posyandu Masuk Satuan PAUD', 'Jadwal bulanan bersama kader: penimbangan, pengukuran, dan pencatatan dilakukan di sekolah sehingga tidak ada anak yang terlewat.', 'posyandu', C.teal],
-      ['Kelas Orang Tua Rutin', 'Parenting bulanan bersama bidan atau petugas puskesmas membuat stimulasi di rumah berjalan sejalan dengan di sekolah.', 'parenting', C.purple],
-      ['Gotong Royong Sanitasi', 'Dana desa dipadukan dengan swadaya wali murid untuk membangun wastafel dan sumber air bersih sederhana.', 'gotongroyong', C.blue],
-      ['Makan Bergizi Bersama', 'Menu bahan lokal disiapkan bergilir oleh orang tua, dilengkapi kebun gizi sekolah dan pembiasaan PHBS.', 'gizi', C.green]
+      ['Posyandu Masuk Satuan PAUD', 'Jadwal bulanan bersama kader: penimbangan, pengukuran, dan pencatatan dilakukan di sekolah sehingga tidak ada anak yang terlewat.', 'foto_layanan', C.teal],
+      ['Kelas Orang Tua Rutin', 'Parenting bulanan bersama bidan atau petugas puskesmas membuat stimulasi di rumah berjalan sejalan dengan di sekolah.', 'guru_membaca', C.purple],
+      ['Gotong Royong Sanitasi', 'Dana desa dipadukan dengan swadaya wali murid untuk membangun wastafel dan sumber air bersih sederhana.', 'gedung_paud', C.blue],
+      ['Makan Bergizi Bersama', 'Menu bahan lokal disiapkan bergilir oleh orang tua, dilengkapi kebun gizi sekolah dan pembiasaan PHBS.', 'foto_anak_kebun', C.green]
     ];
     const cw = 2.84;
     for (let i = 0; i < 4; i++) {
-      const [t, d, scene, col] = cases[i];
+      const [t, d, asset, col] = cases[i];
       const x = M + i * (cw + 0.24);
       card(s, { x, y: 1.62, w: cw, h: 3.62 });
-      const rr = await ratio(scene);
+      const rr = await ratio(asset);
       let ih = 1.4, iw = ih * rr;
       if (iw > cw - 0.3) { iw = cw - 0.3; ih = iw / rr; }
-      s.addImage({ data: await art(scene), x: x + (cw - iw) / 2, y: 1.76, w: iw, h: ih });
-      s.addShape('roundRect', { x: x + 0.15, y: 3.2, w: 0.62, h: 0.28, rectRadius: 0.14, fill: { color: col } });
-      s.addText(String(i + 1).padStart(2, '0'), { x: x + 0.15, y: 3.2, w: 0.62, h: 0.28, fontFace: F, fontSize: 11, bold: true, color: C.white, align: 'center', margin: 0 });
-      s.addText(t, { x: x + 0.2, y: 3.54, w: cw - 0.4, h: 0.56, fontFace: F, fontSize: 13, bold: true, color: C.ink, margin: 0, valign: 'top' });
-      s.addText(d, { x: x + 0.2, y: 4.12, w: cw - 0.4, h: 1.06, fontFace: F, fontSize: 10.5, color: C.body, margin: 0, valign: 'top' });
+      s.addImage({ data: await art(asset), x: x + (cw - iw) / 2, y: 1.76 + (1.4 - ih) / 2, w: iw, h: ih });
+      s.addShape('roundRect', { x: x + 0.15, y: 3.24, w: 0.62, h: 0.28, rectRadius: 0.14, fill: { color: col } });
+      s.addText(String(i + 1).padStart(2, '0'), { x: x + 0.15, y: 3.24, w: 0.62, h: 0.28, fontFace: F, fontSize: 11, bold: true, color: C.white, align: 'center', margin: 0 });
+      s.addText(t, { x: x + 0.2, y: 3.58, w: cw - 0.4, h: 0.56, fontFace: F, fontSize: 13, bold: true, color: C.ink, margin: 0, valign: 'top' });
+      s.addText(d, { x: x + 0.2, y: 4.16, w: cw - 0.4, h: 1.02, fontFace: F, fontSize: 10.5, color: C.body, margin: 0, valign: 'top' });
     }
     card(s, { x: M, y: 5.42, w: SW - M * 2, h: 1.22, fill: C.purpleL, line: 'DED4F2' });
     s.addText('FAKTOR KUNCI KEBERHASILAN', { x: M + 0.34, y: 5.54, w: 4, h: 0.28, fontFace: F, fontSize: 10.5, bold: true, color: C.purple, charSpacing: 1.4, margin: 0 });
@@ -784,27 +803,29 @@ async function sectionSlide(pres, num, title, sub, scene, tone) {
     const s = baseSlide(pres, { bg: C.bg }); decor(s);
     heading(s, 'Strategi', 'Enam Strategi Peningkatan Mutu Layanan');
     const st = [
-      ['Perkuat kepemimpinan & tata kelola', 'Kepala satuan memimpin perencanaan berbasis data dan refleksi berkala bersama pendidik.', C.blue, 'FaMedal'],
-      ['Jadikan data sebagai dasar', 'Gunakan Dapodik dan capaian 8 indikator untuk menentukan prioritas perbaikan.', C.green, 'FaChartLine'],
-      ['Bangun kemitraan berbasis kebutuhan', 'Pilih mitra sesuai indikator yang paling tertinggal, bukan sekadar yang mudah dihubungi.', C.orange, 'FaHandshake'],
-      ['Kuatkan kapasitas pendidik', 'Pendidik sebagai penghubung PAUD HI perlu pelatihan, pendampingan, dan kesejahteraan.', C.purple, 'FaChalkboardTeacher'],
-      ['Lengkapi layanan & sarana esensial', 'Prioritaskan sanitasi, air bersih, dan lingkungan bermain yang aman serta inklusif.', C.teal, 'FaFaucet'],
-      ['Libatkan orang tua sebagai mitra', 'Kelas orang tua yang konsisten menjaga kesinambungan stimulasi di rumah.', C.red, 'FaUserFriends']
+      ['Perkuat kepemimpinan & tata kelola', 'Kepala satuan memimpin perencanaan berbasis data dan refleksi berkala.', C.blue, 'FaMedal'],
+      ['Jadikan data sebagai dasar', 'Gunakan Dapodik dan capaian 8 indikator untuk menentukan prioritas.', C.green, 'FaChartLine'],
+      ['Bangun kemitraan berbasis kebutuhan', 'Pilih mitra sesuai indikator yang paling tertinggal.', C.orange, 'FaHandshake'],
+      ['Kuatkan kapasitas pendidik', 'Pendidik sebagai penghubung PAUD HI perlu pelatihan dan pendampingan.', C.purple, 'FaChalkboardTeacher'],
+      ['Lengkapi layanan & sarana esensial', 'Prioritaskan sanitasi, air bersih, dan ruang bermain yang aman.', C.teal, 'FaFaucet'],
+      ['Libatkan orang tua sebagai mitra', 'Kelas orang tua yang konsisten menjaga kesinambungan stimulasi.', C.red, 'FaUserFriends']
     ];
-    const cw = 3.83, chh = 1.42;
+    const cw = 3.86, chh = 1.42;
     for (let i = 0; i < 6; i++) {
       const [t, d, col, ic] = st[i];
-      const x = M + (i % 3) * (cw + 0.3), y = 1.66 + Math.floor(i / 3) * (chh + 0.3);
+      const x = M + (i % 2) * (cw + 0.28), y = 1.66 + Math.floor(i / 3 % 1) * 0 + Math.floor(i / 2) * (chh + 0.26);
       card(s, { x, y, w: cw, h: chh });
       await iconBadge(s, { x: x + 0.26, y: y + 0.3, d: 0.64, bg: col, icon: ic });
-      s.addText(t, { x: x + 1.02, y: y + 0.22, w: cw - 1.24, h: 0.4, fontFace: F, fontSize: 13, bold: true, color: C.ink, margin: 0, valign: 'top' });
-      s.addText(d, { x: x + 1.02, y: y + 0.64, w: cw - 1.26, h: 0.66, fontFace: F, fontSize: 11, color: C.body, margin: 0, valign: 'top' });
+      s.addText(t, { x: x + 1.02, y: y + 0.22, w: cw - 1.24, h: 0.42, fontFace: F, fontSize: 13, bold: true, color: C.ink, margin: 0, valign: 'top' });
+      s.addText(d, { x: x + 1.02, y: y + 0.66, w: cw - 1.26, h: 0.64, fontFace: F, fontSize: 11, color: C.body, margin: 0, valign: 'top' });
       s.addText(String(i + 1).padStart(2, '0'), { x: x + cw - 0.72, y: y + chh - 0.5, w: 0.5, h: 0.36, fontFace: F, fontSize: 16, bold: true, color: col, transparency: 70, align: 'right', margin: 0 });
     }
-    const rr = await ratio('sekolahband'); const iw = 9.8, ih = iw / rr;
-    s.addImage({ data: await art('sekolahband'), x: (SW - iw) / 2, y: 4.86, w: iw, h: ih });
+    await imgH(s, 'strategi_direktorat', 8.68, 1.9, 2.24, { frame: true });
+    s.addText('Strategi Direktorat PAUD', { x: 8.68, y: 4.38, w: 4.0, h: 0.32, fontFace: F, fontSize: 13, bold: true, color: C.ink, margin: 0 });
+    s.addText('Percepatan pemenuhan 8 indikator PAUD HI dijalankan melalui koordinasi lintas sektor, peningkatan pemahaman, penyaluran bantuan, pengembangan dashboard, serta kajian dampak. Strategi satuan sebaiknya menyambung ke lima jalur ini.',
+      { x: 8.68, y: 4.72, w: 4.0, h: 1.7, fontFace: F, fontSize: 11, color: C.body, margin: 0, valign: 'top' });
     footer(s);
-    s.addNotes('Enam strategi ini saling menopang; mulai dari yang paling mungkin dikerjakan lebih dulu.');
+    s.addNotes('Enam strategi satuan di kiri; lima jalur strategi Direktorat PAUD di kanan. Tekankan keterhubungannya.');
   }
 
   /* ---------------------------------------------- 27. RENCANA AKSI */
@@ -866,17 +887,16 @@ async function sectionSlide(pres, num, title, sub, scene, tone) {
     const cw = 5.9, chh = 0.72;
     for (let i = 0; i < 8; i++) {
       const x = M + (i % 2) * (cw + 0.3), y = 1.66 + Math.floor(i / 2) * (chh + 0.18);
-      card(s, { x, y, w: cw, h: chh, fill: i % 2 === 0 ? C.white : C.white });
+      card(s, { x, y, w: cw, h: chh });
       s.addShape('roundRect', { x: x + 0.24, y: y + 0.18, w: 0.36, h: 0.36, rectRadius: 0.08, fill: { color: C.greenL }, line: { color: C.green, width: 1.4 } });
       s.addImage({ data: await icon('FaCheck', '#' + C.green), x: x + 0.31, y: y + 0.25, w: 0.22, h: 0.22 });
       s.addText(acts[i], { x: x + 0.74, y: y + 0.06, w: cw - 0.96, h: chh - 0.12, fontFace: F, fontSize: 11.5, color: C.ink, margin: 0, valign: 'middle' });
     }
-    card(s, { x: M, y: 5.32, w: 7.9, h: 1.16, fill: C.greenL, line: C.greenM });
+    card(s, { x: M, y: 5.32, w: 9.4, h: 1.16, fill: C.greenL, line: C.greenM });
     s.addText('Mulai dari satu', { x: M + 0.34, y: 5.46, w: 3, h: 0.3, fontFace: F, fontSize: 13, bold: true, color: C.greenD, margin: 0 });
     s.addText('Pilih satu indikator yang paling tertinggal di satuan Anda, tetapkan penanggung jawabnya, dan tentukan tanggal pelaksanaannya sebelum meninggalkan ruangan ini.',
-      { x: M + 0.34, y: 5.78, w: 7.24, h: 0.62, fontFace: F, fontSize: 12, color: C.body, margin: 0, valign: 'top' });
-    const rr = await ratio('praktikbaik'); const ih = 1.46, iw = ih * rr;
-    s.addImage({ data: await art('praktikbaik'), x: SW - M - iw, y: 5.36, w: iw, h: ih });
+      { x: M + 0.34, y: 5.78, w: 8.74, h: 0.62, fontFace: F, fontSize: 12, color: C.body, margin: 0, valign: 'top' });
+    await imgH(s, 'anak_buku', SW - M - 0.3, 5.24, 1.7, { right: true });
     footer(s);
     s.addNotes('Lembar ini sejajar dengan 8 indikator PAUD HI sehingga langsung terhubung ke pelaporan Dapodik.');
   }
@@ -908,15 +928,14 @@ async function sectionSlide(pres, num, title, sub, scene, tone) {
       ['Keterlibatan orang tua', 'Kehadiran kelas orang tua meningkat setiap semester.', C.orange],
       ['Ketepatan data Dapodik', 'Capaian PAUD HI diperbarui tepat waktu setiap semester.', C.purple]
     ];
-    const kw = 2.86;
     for (let i = 0; i < 4; i++) {
       const [t, d, col] = kpi[i];
-      const x = M + i * (kw + 0.22);
-      card(s, { x, y: 4.2, w: kw, h: 1.66, fill: C.bg, line: C.line });
+      const x = M + i * (cw + 0.22);
+      card(s, { x, y: 4.2, w: cw, h: 1.66, fill: C.bg, line: C.line });
       s.addShape('ellipse', { x: x + 0.24, y: 4.4, w: 0.34, h: 0.34, fill: { color: col } });
       s.addText(String(i + 1), { x: x + 0.24, y: 4.4, w: 0.34, h: 0.34, fontFace: F, fontSize: 12, bold: true, color: C.white, align: 'center', valign: 'middle', margin: 0 });
-      s.addText(t, { x: x + 0.24, y: 4.84, w: kw - 0.48, h: 0.5, fontFace: F, fontSize: 12, bold: true, color: C.ink, margin: 0, valign: 'top' });
-      s.addText(d, { x: x + 0.24, y: 5.32, w: kw - 0.48, h: 0.5, fontFace: F, fontSize: 10.5, color: C.body, margin: 0, valign: 'top' });
+      s.addText(t, { x: x + 0.24, y: 4.84, w: cw - 0.48, h: 0.5, fontFace: F, fontSize: 12, bold: true, color: C.ink, margin: 0, valign: 'top' });
+      s.addText(d, { x: x + 0.24, y: 5.32, w: cw - 0.48, h: 0.5, fontFace: F, fontSize: 10.5, color: C.body, margin: 0, valign: 'top' });
     }
     card(s, { x: M, y: 6.0, w: SW - M * 2, h: 0.72, fill: C.blueL, line: C.blueM });
     s.addText('Monitoring bukan mencari kesalahan, melainkan menjaga agar layanan yang sudah baik tidak berhenti di tengah jalan.',
@@ -928,25 +947,26 @@ async function sectionSlide(pres, num, title, sub, scene, tone) {
   /* ------------------------------------------------------ 30. PENUTUP */
   {
     const s = baseSlide(pres, { bg: C.blueXD });
-    const rr = await ratio('perayaan'); const iw = SW, ih = iw / rr;
-    s.addImage({ data: await art('perayaan'), x: 0, y: SH - ih, w: iw, h: ih });
-    s.addShape('ellipse', { x: 9.0, y: -1.8, w: 6.0, h: 6.0, fill: { color: C.green, transparency: 62 } });
-    s.addShape('ellipse', { x: -1.8, y: 1.6, w: 3.6, h: 3.6, fill: { color: C.orange, transparency: 68 } });
-    s.addText('Mari Wujudkan Bersama', { x: M, y: 0.6, w: 9, h: 0.42, fontFace: F, fontSize: 14, bold: true, color: C.orangeM, charSpacing: 1, margin: 0 });
+    s.addShape('ellipse', { x: 8.4, y: -2.4, w: 7.6, h: 7.6, fill: { color: C.green, transparency: 62 } });
+    s.addShape('ellipse', { x: -2.2, y: 3.4, w: 4.4, h: 4.4, fill: { color: C.orange, transparency: 68 } });
+    await imgH(s, 'terima_kasih', SW - M, 1.9, 3.6, { right: true, frame: true });
+    s.addText('Mari Wujudkan Bersama', { x: M, y: 1.1, w: 7, h: 0.42, fontFace: F, fontSize: 14, bold: true, color: C.orangeM, charSpacing: 1, margin: 0 });
     s.addText('Anak Indonesia Tumbuh Utuh,\nLayanan PAUD Bermutu', {
-      x: M, y: 1.02, w: 9.6, h: 1.44, fontFace: F, fontSize: 34, bold: true, color: C.white, lineSpacing: 40, margin: 0
+      x: M, y: 1.56, w: 6.35, h: 1.7, fontFace: F, fontSize: 27, bold: true, color: C.white, lineSpacing: 31, margin: 0
     });
     s.addText('Kemitraan strategis bukan menambah pekerjaan satuan PAUD — ia membagi beban, memperluas dukungan, dan memastikan tidak ada satu pun kebutuhan anak yang terlewat.',
-      { x: M, y: 2.5, w: 8.4, h: 0.72, fontFace: F, fontSize: 13.5, color: C.blueM, margin: 0, valign: 'top' });
+      { x: M, y: 3.42, w: 6.1, h: 1.0, fontFace: F, fontSize: 13, color: C.blueM, margin: 0, valign: 'top' });
     const cta = [['Petakan mitra minggu ini', C.orange], ['Mulai dari satu indikator', C.green], ['Catat, laporkan, apresiasi', C.teal]];
-    let cx = M;
+    let cx = M, cy = 4.44;
     for (const [t, col] of cta) {
       const w = 0.34 + t.length * 0.098;
-      s.addShape('roundRect', { x: cx, y: 3.28, w, h: 0.44, rectRadius: 0.22, fill: { color: col } });
-      s.addText(t, { x: cx, y: 3.28, w, h: 0.44, fontFace: F, fontSize: 11.5, bold: true, color: C.white, align: 'center', margin: 0 });
+      if (cx + w > 7.2) { cx = M; cy += 0.56; }
+      s.addShape('roundRect', { x: cx, y: cy, w, h: 0.44, rectRadius: 0.22, fill: { color: col } });
+      s.addText(t, { x: cx, y: cy, w, h: 0.44, fontFace: F, fontSize: 11.5, bold: true, color: C.white, align: 'center', margin: 0 });
       cx += w + 0.18;
     }
-    s.addText('Terima kasih', { x: M, y: 3.8, w: 6, h: 0.5, fontFace: F, fontSize: 24, bold: true, color: C.white, margin: 0 });
+    s.addText('Terima kasih', { x: M, y: 5.7, w: 6, h: 0.5, fontFace: F, fontSize: 26, bold: true, color: C.white, margin: 0 });
+    s.addText('Direktorat Pendidikan Anak Usia Dini', { x: M, y: 6.2, w: 6, h: 0.32, fontFace: F, fontSize: 12, color: C.blueM, margin: 0 });
     PAGE++;
     s.addNotes('Tutup dengan ajakan konkret: satu indikator, satu mitra, satu tanggal.');
   }

@@ -1,0 +1,263 @@
+[
+  {
+    "name": "cover_guru_anak",
+    "sumber": "B",
+    "berkas": "image33.png",
+    "ukuran": "1200x920",
+    "berkas_keluaran": "cover_guru_anak.png",
+    "kb": 136,
+    "catatan": "Guru dan anak PAUD dengan bendera"
+  },
+  {
+    "name": "halaman_paud",
+    "sumber": "B",
+    "berkas": "image27.png",
+    "ukuran": "1200x804",
+    "berkas_keluaran": "halaman_paud.png",
+    "kb": 80,
+    "catatan": "Halaman satuan PAUD inklusif"
+  },
+  {
+    "name": "terima_kasih",
+    "sumber": "B",
+    "berkas": "image32.png",
+    "ukuran": "1200x765",
+    "berkas_keluaran": "terima_kasih.png",
+    "kb": 69,
+    "catatan": "Anak membaca buku — penutup"
+  },
+  {
+    "name": "roda_8indikator",
+    "sumber": "B",
+    "berkas": "image25.png",
+    "ukuran": "1200x1198",
+    "berkas_keluaran": "roda_8indikator.png",
+    "kb": 98,
+    "catatan": "Roda 8 indikator PAUD HI"
+  },
+  {
+    "name": "roda_puzzle",
+    "sumber": "B",
+    "berkas": "image9.png",
+    "ukuran": "960x959",
+    "berkas_keluaran": "roda_puzzle.png",
+    "kb": 63,
+    "catatan": "Roda puzzle 8 segmen"
+  },
+  {
+    "name": "badge_pembelajaran",
+    "sumber": "B",
+    "berkas": "image5.png",
+    "ukuran": "1054x1054",
+    "berkas_keluaran": "badge_pembelajaran.png",
+    "kb": 21,
+    "catatan": "Elemen: pembelajaran yang berkualitas"
+  },
+  {
+    "name": "badge_kemitraan",
+    "sumber": "B",
+    "berkas": "image3.png",
+    "ukuran": "843x843",
+    "berkas_keluaran": "badge_kemitraan.png",
+    "kb": 16,
+    "catatan": "Elemen: kemitraan orang tua"
+  },
+  {
+    "name": "badge_esensial",
+    "sumber": "B",
+    "berkas": "image6.png",
+    "ukuran": "843x842",
+    "berkas_keluaran": "badge_esensial.png",
+    "kb": 19,
+    "catatan": "Elemen: dukungan kebutuhan esensial AUD"
+  },
+  {
+    "name": "badge_kepemimpinan",
+    "sumber": "B",
+    "berkas": "image18.png",
+    "ukuran": "1200x1200",
+    "berkas_keluaran": "badge_kepemimpinan.png",
+    "kb": 32,
+    "catatan": "Elemen: kepemimpinan & perbaikan berkelanjutan"
+  },
+  {
+    "name": "seri_panduan",
+    "sumber": "B",
+    "berkas": "image29.png",
+    "ukuran": "1071x551",
+    "berkas_keluaran": "seri_panduan.png",
+    "kb": 107,
+    "catatan": "Seri panduan PAUD berkualitas"
+  },
+  {
+    "name": "buku_panduan",
+    "sumber": "B",
+    "berkas": "image28.png",
+    "ukuran": "1200x613",
+    "berkas_keluaran": "buku_panduan.png",
+    "kb": 77,
+    "catatan": "Panduan penyelenggaraan PAUD berkualitas"
+  },
+  {
+    "name": "roda_lintas_kl",
+    "sumber": "A",
+    "berkas": "image19.png",
+    "ukuran": "396x387",
+    "berkas_keluaran": "roda_lintas_kl.png",
+    "kb": 27,
+    "catatan": "Roda puzzle lintas kementerian/lembaga"
+  },
+  {
+    "name": "guru_mengajar",
+    "sumber": "A",
+    "berkas": "image26.png",
+    "ukuran": "395x357",
+    "berkas_keluaran": "guru_mengajar.png",
+    "kb": 67,
+    "catatan": "Guru mendampingi anak belajar"
+  },
+  {
+    "name": "anak_bermain",
+    "sumber": "A",
+    "berkas": "image26.png",
+    "ukuran": "470x197",
+    "berkas_keluaran": "anak_bermain.png",
+    "kb": 48,
+    "catatan": "Anak bermain balok dan roket"
+  },
+  {
+    "name": "guru_membaca",
+    "sumber": "A",
+    "berkas": "image23.png",
+    "ukuran": "605x235",
+    "berkas_keluaran": "guru_membaca.png",
+    "kb": 65,
+    "catatan": "Guru membacakan buku"
+  },
+  {
+    "name": "simbol_regulasi",
+    "sumber": "A",
+    "berkas": "image23.png",
+    "ukuran": "375x252",
+    "berkas_keluaran": "simbol_regulasi.png",
+    "kb": 42,
+    "catatan": "Buku, palu sidang, dan timbangan"
+  },
+  {
+    "name": "anak_balok",
+    "sumber": "A",
+    "berkas": "image25.png",
+    "ukuran": "375x285",
+    "berkas_keluaran": "anak_balok.png",
+    "kb": 43,
+    "catatan": "Anak menyusun balok"
+  },
+  {
+    "name": "anak_melambai",
+    "sumber": "A",
+    "berkas": "image42.png",
+    "ukuran": "440x440",
+    "berkas_keluaran": "anak_melambai.png",
+    "kb": 68,
+    "catatan": "Dua anak melambai"
+  },
+  {
+    "name": "gedung_paud",
+    "sumber": "A",
+    "berkas": "image42.png",
+    "ukuran": "340x400",
+    "berkas_keluaran": "gedung_paud.png",
+    "kb": 46,
+    "catatan": "Gedung PAUD dan balok"
+  },
+  {
+    "name": "anak_tas",
+    "sumber": "A",
+    "berkas": "image36.png",
+    "ukuran": "250x376",
+    "berkas_keluaran": "anak_tas.png",
+    "kb": 37,
+    "catatan": "Anak dengan tas sekolah"
+  },
+  {
+    "name": "roda_paudhi",
+    "sumber": "A",
+    "berkas": "image36.png",
+    "ukuran": "612x620",
+    "berkas_keluaran": "roda_paudhi.png",
+    "kb": 129,
+    "catatan": "Roda PAUD HI: holistik integratif"
+  },
+  {
+    "name": "anak_buku",
+    "sumber": "A",
+    "berkas": "image36.png",
+    "ukuran": "217x392",
+    "berkas_keluaran": "anak_buku.png",
+    "kb": 35,
+    "catatan": "Anak membawa buku"
+  },
+  {
+    "name": "tabel_capaian",
+    "sumber": "A",
+    "berkas": "image43.jpg",
+    "ukuran": "1200x627",
+    "berkas_keluaran": "tabel_capaian.jpg",
+    "kb": 100,
+    "catatan": "Tabel capaian indikator baseline vs 2025"
+  },
+  {
+    "name": "grafik_indikator",
+    "sumber": "A",
+    "berkas": "image34.png",
+    "ukuran": "752x452",
+    "berkas_keluaran": "grafik_indikator.png",
+    "kb": 9,
+    "catatan": "Grafik batang pemenuhan indikator"
+  },
+  {
+    "name": "bubble_refleksi",
+    "sumber": "A",
+    "berkas": "image11.png",
+    "ukuran": "1200x455",
+    "berkas_keluaran": "bubble_refleksi.png",
+    "kb": 78,
+    "catatan": "Balon pertanyaan refleksi"
+  },
+  {
+    "name": "strategi_direktorat",
+    "sumber": "A",
+    "berkas": "image41.jpg",
+    "ukuran": "1200x670",
+    "berkas_keluaran": "strategi_direktorat.jpg",
+    "kb": 84,
+    "catatan": "Strategi percepatan pemenuhan indikator"
+  },
+  {
+    "name": "foto_anak_kelas",
+    "sumber": "A",
+    "berkas": "image45.jpg",
+    "ukuran": "1200x800",
+    "berkas_keluaran": "foto_anak_kelas.jpg",
+    "kb": 136,
+    "catatan": "Anak bermain balok di kelas"
+  },
+  {
+    "name": "foto_anak_kebun",
+    "sumber": "A",
+    "berkas": "image39.jpg",
+    "ukuran": "1200x675",
+    "berkas_keluaran": "foto_anak_kebun.jpg",
+    "kb": 175,
+    "catatan": "Anak PAUD di luar ruang"
+  },
+  {
+    "name": "foto_layanan",
+    "sumber": "A",
+    "berkas": "image22.png",
+    "ukuran": "808x840",
+    "berkas_keluaran": "foto_layanan.jpg",
+    "kb": 123,
+    "catatan": "Dokumentasi layanan kesehatan dan posyandu"
+  }
+]
